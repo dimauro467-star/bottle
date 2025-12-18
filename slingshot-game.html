@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Tiro alla Bottiglia</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 900px;
+            max-height: 600px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(to bottom, #87CEEB, #D4E9F5);
+            border: 4px solid #8B4513;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            touch-action: none;
+        }
+        
+        @media (max-width: 900px) {
+            #gameCanvas {
+                width: 100vw !important;
+                height: calc(100vw * 600 / 900) !important;
+                max-height: 100vh;
+                border: none;
+            }
+            
+            body {
+                background: linear-gradient(to bottom, #87CEEB, #D4E9F5);
+            }
+        }
+        
+        @media (orientation: portrait) and (max-width: 900px) {
+            #gameCanvas {
+                width: 100vw !important;
+                height: calc(100vw * 600 / 900) !important;
+            }
+        }
+        
+        @media (orientation: landscape) and (max-height: 600px) {
+            #gameCanvas {
+                height: 100vh !important;
+                width: calc(100vh * 900 / 600) !important;
+            }
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 30px;
+            border-radius: 15px;
+            font-size: 18px;
+            z-index: 10;
+        }
+        
+        #powerBar {
+            position: absolute;
+            bottom: 150px;
+            left: 30px;
+            width: 30px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 3px solid #333;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        
+        #powerFill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: linear-gradient(to top, #27ae60, #f39c12, #e74c3c);
+            transition: height 0.1s;
+        }
+        
+        #instructions {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #333;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 16px;
+            max-width: 90%;
+            z-index: 5;
+        }
+        
+        #levelComplete {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 20;
+        }
+        
+        #levelComplete h2 {
+            color: #27ae60;
+            margin-bottom: 20px;
+            font-size: 36px;
+        }
+        
+        #levelComplete button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        
+        #levelComplete button:hover {
+            background: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div id="scoreArea" style="cursor: pointer;">🎯 Punteggio: <span id="score">0</span></div>
+            <div>🎪 Livello: <span id="level">1</span></div>
+            <div>🏹 Colpi: <span id="shots">10</span></div>
+        </div>
+        
+        <div id="instructions">
+            <strong>Trascina la fionda e rilascia per sparare!</strong><br>
+            Distruggi tutte le bottiglie per passare al livello successivo
+        </div>
+        
+        <div id="powerBar">
+            <div id="powerFill"></div>
+        </div>
+        
+        <div id="levelComplete">
+            <h2 id="completeTitle">🎉 Livello Completato!</h2>
+            <p id="completeMessage"></p>
+            <button onclick="nextLevel()">Livello Successivo</button>
+            <button onclick="restartGame()">Riprova Livello</button>
+        </div>
+        
+        <div id="devMode" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 30;">
+            <h2 style="color: #3498db; margin-bottom: 20px;">🔧 Modalità Sviluppatore</h2>
+            <p style="margin-bottom: 20px;">Inserisci il codice e il livello desiderato</p>
+            <input type="password" id="devCode" placeholder="Codice sviluppatore" style="padding: 10px; font-size: 16px; border-radius: 5px; border: 2px solid #3498db; margin-bottom: 15px; width: 250px;">
+            <br>
+            <input type="number" id="devLevel" placeholder="Livello (1-50)" min="1" max="50" style="padding: 10px; font-size: 16px; border-radius: 5px; border: 2px solid #3498db; margin-bottom: 20px; width: 250px;">
+            <br>
+            <button onclick="checkDevCode()" style="background: #27ae60; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 10px; cursor: pointer; margin-right: 10px;">Vai al Livello</button>
+            <button onclick="closeDevMode()" style="background: #e74c3c; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 10px; cursor: pointer;">Annulla</button>
+            <p id="devError" style="color: #e74c3c; margin-top: 15px; display: none;">Codice errato!</p>
+        </div>
+        
+        <canvas id="gameCanvas" width="900" height="600"></canvas>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let score = 0;
+        let level = 1;
+        let shotsLeft = 10;
+        let bottles = [];
+        let balls = [];
+        let obstacles = [];
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let dragCurrent = { x: 0, y: 0 };
+        let slingshot = { x: 150, y: 500, radius: 15 };
+        let levelStartScore = 0; // Punteggio all'inizio del livello
+        
+        class Bottle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.width = 30;
+                this.height = 60;
+                this.color = color;
+                this.alive = true;
+                this.falling = false;
+                this.velocityY = 0;
+                this.rotation = 0;
+                this.rotationSpeed = 0;
+            }
+            
+            draw() {
+                if (!this.alive) return;
+                
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                ctx.rotate(this.rotation);
+                
+                // Corpo bottiglia
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height * 0.7);
+                
+                // Collo bottiglia
+                ctx.fillRect(-this.width / 4, -this.height / 2 - 15, this.width / 2, 15);
+                
+                // Tappo
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(-this.width / 3, -this.height / 2 - 20, this.width * 0.66, 5);
+                
+                // Riflesso
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fillRect(-this.width / 2 + 5, -this.height / 2 + 10, 8, 20);
+                
+                ctx.restore();
+            }
+            
+            update() {
+                if (this.falling) {
+                    this.velocityY += 0.5;
+                    this.y += this.velocityY;
+                    this.rotation += this.rotationSpeed;
+                    
+                    if (this.y > canvas.height) {
+                        this.alive = false;
+                    }
+                }
+            }
+            
+            hit() {
+                if (this.alive && !this.falling) {
+                    this.falling = true;
+                    this.rotationSpeed = (Math.random() - 0.5) * 0.3;
+                    score += 10;
+                    document.getElementById('score').textContent = score;
+                }
+            }
+        }
+        
+        class Obstacle {
+            constructor(x, y, width, height, type) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.type = type; // 'wood', 'stone', 'glass'
+            }
+            
+            draw() {
+                ctx.save();
+                
+                if (this.type === 'wood') {
+                    // Ostacolo di legno
+                    ctx.fillStyle = '#8d6e63';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.strokeStyle = '#5d4037';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(this.x, this.y, this.width, this.height);
+                    // Venature
+                    ctx.strokeStyle = '#6d4c41';
+                    for (let i = 0; i < 3; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y + (this.height / 4) * (i + 1));
+                        ctx.lineTo(this.x + this.width, this.y + (this.height / 4) * (i + 1));
+                        ctx.stroke();
+                    }
+                } else if (this.type === 'stone') {
+                    // Ostacolo di pietra
+                    ctx.fillStyle = '#78909c';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.strokeStyle = '#546e7a';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(this.x, this.y, this.width, this.height);
+                    // Crepe
+                    ctx.strokeStyle = '#455a64';
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + this.width * 0.3, this.y);
+                    ctx.lineTo(this.x + this.width * 0.4, this.y + this.height);
+                    ctx.moveTo(this.x + this.width * 0.7, this.y);
+                    ctx.lineTo(this.x + this.width * 0.6, this.y + this.height);
+                    ctx.stroke();
+                } else if (this.type === 'glass') {
+                    // Ostacolo di vetro
+                    ctx.fillStyle = 'rgba(173, 216, 230, 0.5)';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.strokeStyle = '#4fc3f7';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(this.x, this.y, this.width, this.height);
+                    // Riflessi
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                    ctx.fillRect(this.x + 5, this.y + 5, 10, this.height - 10);
+                }
+                
+                ctx.restore();
+            }
+            
+            checkCollision(ball) {
+                return ball.x + ball.radius > this.x &&
+                       ball.x - ball.radius < this.x + this.width &&
+                       ball.y + ball.radius > this.y &&
+                       ball.y - ball.radius < this.y + this.height;
+            }
+        }
+        
+        class Ball {
+            constructor(x, y, vx, vy) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.radius = 12;
+                this.active = true;
+                this.trail = [];
+            }
+            
+            draw() {
+                // Scia
+                for (let i = 0; i < this.trail.length; i++) {
+                    const t = this.trail[i];
+                    const alpha = i / this.trail.length;
+                    ctx.fillStyle = `rgba(255, 100, 100, ${alpha * 0.5})`;
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, this.radius * alpha, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Pallina
+                const gradient = ctx.createRadialGradient(
+                    this.x - 3, this.y - 3, 2,
+                    this.x, this.y, this.radius
+                );
+                gradient.addColorStop(0, '#ff6b6b');
+                gradient.addColorStop(1, '#c92a2a');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Riflesso
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.beginPath();
+                ctx.arc(this.x - 4, this.y - 4, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            update() {
+                this.trail.push({ x: this.x, y: this.y });
+                if (this.trail.length > 15) {
+                    this.trail.shift();
+                }
+                
+                this.vy += 0.3; // Gravità
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Controlla collisioni con ostacoli
+                for (let obstacle of obstacles) {
+                    if (obstacle.checkCollision(this)) {
+                        // Determina da che lato è avvenuta la collisione
+                        const ballCenterX = this.x;
+                        const ballCenterY = this.y;
+                        const obstCenterX = obstacle.x + obstacle.width / 2;
+                        const obstCenterY = obstacle.y + obstacle.height / 2;
+                        
+                        const dx = ballCenterX - obstCenterX;
+                        const dy = ballCenterY - obstCenterY;
+                        
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            // Collisione laterale
+                            this.vx *= -0.7;
+                            if (dx > 0) {
+                                this.x = obstacle.x + obstacle.width + this.radius;
+                            } else {
+                                this.x = obstacle.x - this.radius;
+                            }
+                        } else {
+                            // Collisione verticale
+                            this.vy *= -0.7;
+                            if (dy > 0) {
+                                this.y = obstacle.y + obstacle.height + this.radius;
+                            } else {
+                                this.y = obstacle.y - this.radius;
+                            }
+                        }
+                    }
+                }
+                
+                // Rimbalzo sui bordi
+                if (this.x < this.radius || this.x > canvas.width - this.radius) {
+                    this.vx *= -0.8;
+                    this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                }
+                
+                if (this.y > canvas.height - this.radius) {
+                    this.vy *= -0.7;
+                    this.y = canvas.height - this.radius;
+                    this.vx *= 0.95;
+                    
+                    if (Math.abs(this.vy) < 1 && Math.abs(this.vx) < 0.5) {
+                        this.active = false;
+                    }
+                }
+                
+                if (this.x < 0 || this.x > canvas.width || this.y > canvas.height + 100) {
+                    this.active = false;
+                }
+            }
+            
+            checkCollision(bottle) {
+                if (!bottle.alive || bottle.falling) return false;
+                
+                const dx = this.x - (bottle.x + bottle.width / 2);
+                const dy = this.y - (bottle.y + bottle.height / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                return distance < this.radius + bottle.width / 2;
+            }
+        }
+        
+        function drawSlingshot() {
+            // Base
+            ctx.fillStyle = '#6d4c41';
+            ctx.fillRect(slingshot.x - 5, slingshot.y, 10, 50);
+            
+            // Elastico sinistro
+            ctx.strokeStyle = '#795548';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(slingshot.x - 30, slingshot.y - 40);
+            if (isDragging) {
+                ctx.lineTo(dragCurrent.x, dragCurrent.y);
+            } else {
+                ctx.lineTo(slingshot.x, slingshot.y);
+            }
+            ctx.stroke();
+            
+            // Elastico destro
+            ctx.beginPath();
+            ctx.moveTo(slingshot.x + 30, slingshot.y - 40);
+            if (isDragging) {
+                ctx.lineTo(dragCurrent.x, dragCurrent.y);
+            } else {
+                ctx.lineTo(slingshot.x, slingshot.y);
+            }
+            ctx.stroke();
+            
+            // Forcella
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(slingshot.x - 30, slingshot.y - 40);
+            ctx.lineTo(slingshot.x - 30, slingshot.y);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(slingshot.x + 30, slingshot.y - 40);
+            ctx.lineTo(slingshot.x + 30, slingshot.y);
+            ctx.stroke();
+            
+            // Pallina in posizione
+            if (!isDragging) {
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(slingshot.x, slingshot.y, 12, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(dragCurrent.x, dragCurrent.y, 12, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        function drawGround() {
+            // Erba
+            ctx.fillStyle = '#7cb342';
+            ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
+            
+            // Dettagli erba
+            ctx.strokeStyle = '#558b2f';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < canvas.width; i += 10) {
+                ctx.beginPath();
+                ctx.moveTo(i, canvas.height - 30);
+                ctx.lineTo(i + 3, canvas.height - 35);
+                ctx.stroke();
+            }
+            
+            // Piattaforma bottiglie
+            ctx.fillStyle = '#8d6e63';
+            ctx.fillRect(500, canvas.height - 100, 350, 20);
+        }
+        
+        function createBottleTower() {
+            bottles = [];
+            obstacles = [];
+            levelStartScore = score; // Salva il punteggio all'inizio del livello
+            const baseX = 600;
+            const baseY = canvas.height - 120;
+            const colors = ['#4fc3f7', '#81c784', '#fff176', '#ff8a65', '#ba68c8'];
+            
+            // Configura torri in base al livello
+            if (level === 1) {
+                // 3 bottiglie in fila
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX + i * 50, baseY, colors[i % colors.length]));
+                }
+            } else if (level === 2) {
+                // Piramide 3-2-1
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX + i * 50, baseY, colors[i]));
+                }
+                for (let i = 0; i < 2; i++) {
+                    bottles.push(new Bottle(baseX + 25 + i * 50, baseY - 65, colors[i + 3]));
+                }
+                bottles.push(new Bottle(baseX + 50, baseY - 130, colors[0]));
+            } else if (level === 3) {
+                // Piramide 4-3-2-1
+                for (let i = 0; i < 4; i++) {
+                    bottles.push(new Bottle(baseX - 25 + i * 50, baseY, colors[i % colors.length]));
+                }
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX + i * 50, baseY - 65, colors[(i + 1) % colors.length]));
+                }
+                for (let i = 0; i < 2; i++) {
+                    bottles.push(new Bottle(baseX + 25 + i * 50, baseY - 130, colors[(i + 2) % colors.length]));
+                }
+                bottles.push(new Bottle(baseX + 50, baseY - 195, colors[4]));
+            } else if (level === 4) {
+                // Due torri separate 3-2-1
+                for (let tower = 0; tower < 2; tower++) {
+                    const offsetX = tower * 180 - 90;
+                    for (let i = 0; i < 3; i++) {
+                        bottles.push(new Bottle(baseX + offsetX + i * 45, baseY, colors[i % colors.length]));
+                    }
+                    for (let i = 0; i < 2; i++) {
+                        bottles.push(new Bottle(baseX + offsetX + 22 + i * 45, baseY - 65, colors[(i + 2) % colors.length]));
+                    }
+                    bottles.push(new Bottle(baseX + offsetX + 45, baseY - 130, colors[4]));
+                }
+            } else if (level === 5) {
+                // Torre larga 5-4-3-2-1
+                for (let i = 0; i < 5; i++) {
+                    bottles.push(new Bottle(baseX - 50 + i * 45, baseY, colors[i % colors.length]));
+                }
+                for (let i = 0; i < 4; i++) {
+                    bottles.push(new Bottle(baseX - 28 + i * 45, baseY - 65, colors[(i + 1) % colors.length]));
+                }
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX - 5 + i * 45, baseY - 130, colors[(i + 2) % colors.length]));
+                }
+                for (let i = 0; i < 2; i++) {
+                    bottles.push(new Bottle(baseX + 17 + i * 45, baseY - 195, colors[(i + 3) % colors.length]));
+                }
+                bottles.push(new Bottle(baseX + 40, baseY - 260, colors[0]));
+            } else if (level === 6) {
+                // Tre colonne verticali
+                for (let col = 0; col < 3; col++) {
+                    const offsetX = (col - 1) * 100;
+                    for (let row = 0; row < 4; row++) {
+                        bottles.push(new Bottle(baseX + offsetX, baseY - row * 65, colors[row % colors.length]));
+                    }
+                }
+            } else if (level === 7) {
+                // Castello con mura laterali
+                // Base centrale
+                for (let i = 0; i < 4; i++) {
+                    bottles.push(new Bottle(baseX - 25 + i * 45, baseY, colors[i % colors.length]));
+                }
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX - 5 + i * 45, baseY - 65, colors[(i + 1) % colors.length]));
+                }
+                // Torri laterali
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX - 120, baseY - i * 65, colors[(i + 2) % colors.length]));
+                    bottles.push(new Bottle(baseX + 120, baseY - i * 65, colors[(i + 3) % colors.length]));
+                }
+            } else if (level === 8) {
+                // Muro compatto 6x3
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 6; col++) {
+                        bottles.push(new Bottle(baseX - 75 + col * 35, baseY - row * 65, colors[(row + col) % colors.length]));
+                    }
+                }
+            } else if (level === 9) {
+                // Piramide doppia speculare
+                // Piramide sinistra
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4 - row; col++) {
+                        bottles.push(new Bottle(baseX - 150 + col * 40, baseY - row * 65, colors[row % colors.length]));
+                    }
+                }
+                // Piramide destra
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4 - row; col++) {
+                        bottles.push(new Bottle(baseX + 30 + col * 40, baseY - row * 65, colors[row % colors.length]));
+                    }
+                }
+            } else if (level === 10) {
+                // Livello 10: Prima introduzione degli ostacoli - barriera di legno semplice
+                for (let i = 0; i < 4; i++) {
+                    bottles.push(new Bottle(baseX - 25 + i * 45, baseY, colors[i % colors.length]));
+                }
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX - 5 + i * 45, baseY - 65, colors[(i + 1) % colors.length]));
+                }
+                // Ostacolo verticale - più basso
+                obstacles.push(new Obstacle(400, 400, 20, 100, 'wood'));
+            } else if (level === 11) {
+                // Due muri di protezione laterali - più bassi
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        bottles.push(new Bottle(baseX - 40 + col * 40, baseY - row * 65, colors[(row + col) % colors.length]));
+                    }
+                }
+                obstacles.push(new Obstacle(450, 380, 20, 120, 'wood'));
+                obstacles.push(new Obstacle(700, 380, 20, 120, 'wood'));
+            } else if (level === 12) {
+                // Muro di pietra centrale - più basso
+                for (let i = 0; i < 5; i++) {
+                    bottles.push(new Bottle(baseX - 50 + i * 45, baseY, colors[i % colors.length]));
+                }
+                for (let i = 0; i < 4; i++) {
+                    bottles.push(new Bottle(baseX - 28 + i * 45, baseY - 65, colors[(i + 1) % colors.length]));
+                }
+                obstacles.push(new Obstacle(480, 400, 30, 100, 'stone'));
+            } else if (level === 13) {
+                // Fortezza con muri a L - ridimensionati
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 5; col++) {
+                        bottles.push(new Bottle(baseX - 50 + col * 35, baseY - row * 65, colors[(row + col) % colors.length]));
+                    }
+                }
+                obstacles.push(new Obstacle(400, 350, 20, 150, 'stone'));
+                obstacles.push(new Obstacle(400, 350, 100, 20, 'stone'));
+            } else if (level === 14) {
+                // Tunnel di vetro - più basso
+                for (let i = 0; i < 4; i++) {
+                    bottles.push(new Bottle(baseX - 25 + i * 45, baseY, colors[i % colors.length]));
+                }
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX - 5 + i * 45, baseY - 65, colors[(i + 1) % colors.length]));
+                }
+                obstacles.push(new Obstacle(430, 370, 20, 130, 'glass'));
+                obstacles.push(new Obstacle(450, 370, 150, 20, 'glass'));
+                obstacles.push(new Obstacle(580, 390, 20, 110, 'glass'));
+            } else if (level === 15) {
+                // Labirinto semplice - altezze ridotte
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 3; col++) {
+                        bottles.push(new Bottle(baseX + col * 40, baseY - row * 65, colors[(row + col) % colors.length]));
+                    }
+                }
+                obstacles.push(new Obstacle(350, 430, 20, 70, 'wood'));
+                obstacles.push(new Obstacle(370, 430, 80, 20, 'wood'));
+                obstacles.push(new Obstacle(430, 380, 20, 70, 'wood'));
+                obstacles.push(new Obstacle(450, 380, 80, 20, 'wood'));
+            } else if (level === 16) {
+                // Doppia protezione - ostacoli più bassi e distanziati
+                for (let i = 0; i < 5; i++) {
+                    bottles.push(new Bottle(baseX - 50 + i * 45, baseY, colors[i % colors.length]));
+                }
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX - 5 + i * 45, baseY - 65, colors[(i + 1) % colors.length]));
+                }
+                obstacles.push(new Obstacle(420, 400, 25, 100, 'stone'));
+                obstacles.push(new Obstacle(500, 370, 25, 130, 'stone'));
+            } else if (level === 17) {
+                // Castello fortificato - muri più bassi
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 6; col++) {
+                        bottles.push(new Bottle(baseX - 75 + col * 35, baseY - row * 65, colors[(row + col) % colors.length]));
+                    }
+                }
+                obstacles.push(new Obstacle(380, 340, 20, 160, 'stone'));
+                obstacles.push(new Obstacle(380, 340, 90, 20, 'stone'));
+                obstacles.push(new Obstacle(450, 360, 20, 140, 'stone'));
+                obstacles.push(new Obstacle(700, 420, 60, 20, 'wood'));
+            } else if (level === 18) {
+                // Scacchiera di ostacoli - più bassi e sparsi
+                for (let i = 0; i < 4; i++) {
+                    bottles.push(new Bottle(baseX - 25 + i * 45, baseY, colors[i % colors.length]));
+                }
+                for (let i = 0; i < 3; i++) {
+                    bottles.push(new Bottle(baseX - 5 + i * 45, baseY - 65, colors[(i + 1) % colors.length]));
+                }
+                obstacles.push(new Obstacle(350, 460, 25, 40, 'wood'));
+                obstacles.push(new Obstacle(420, 410, 25, 40, 'glass'));
+                obstacles.push(new Obstacle(490, 460, 25, 40, 'stone'));
+                obstacles.push(new Obstacle(560, 410, 25, 40, 'wood'));
+                obstacles.push(new Obstacle(400, 340, 30, 50, 'stone'));
+                obstacles.push(new Obstacle(520, 340, 30, 50, 'stone'));
+            } else if (level === 19) {
+                // Fortezza massima - muri più bassi e aperti
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 5; col++) {
+                        bottles.push(new Bottle(baseX - 50 + col * 35, baseY - row * 65, colors[(row + col) % colors.length]));
+                    }
+                }
+                obstacles.push(new Obstacle(380, 310, 25, 190, 'stone'));
+                obstacles.push(new Obstacle(380, 310, 130, 25, 'stone'));
+                obstacles.push(new Obstacle(485, 335, 25, 165, 'stone'));
+                obstacles.push(new Obstacle(405, 400, 40, 25, 'glass'));
+                obstacles.push(new Obstacle(445, 440, 40, 25, 'glass'));
+            } else {
+                // Livello 20+: Fortezza ultra protetta con muri più gestibili
+                const rows = 4 + Math.floor((level - 20) / 3);
+                const cols = 5 + Math.floor((level - 20) / 4);
+                for (let row = 0; row < Math.min(rows, 5); row++) {
+                    for (let col = 0; col < Math.min(cols, 7); col++) {
+                        bottles.push(new Bottle(
+                            baseX - (cols * 32) / 2 + col * 32, 
+                            baseY - row * 65, 
+                            colors[(row + col) % colors.length]
+                        ));
+                    }
+                }
+                // Muri multipli ma più bassi e con più spazi
+                const numObstacles = 3 + Math.floor((level - 20) / 2);
+                for (let i = 0; i < Math.min(numObstacles, 5); i++) {
+                    const x = 350 + i * 60;
+                    const height = 100 + (i % 2) * 60;
+                    const yPos = 500 - height;
+                    const type = ['wood', 'stone', 'glass'][i % 3];
+                    obstacles.push(new Obstacle(x, yPos, 20, height, type));
+                }
+            }
+        }
+        
+        function updatePowerBar() {
+            if (!isDragging) {
+                document.getElementById('powerFill').style.height = '0%';
+                return;
+            }
+            
+            const dx = dragCurrent.x - slingshot.x;
+            const dy = dragCurrent.y - slingshot.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const maxDistance = 150;
+            const power = Math.min(distance / maxDistance * 100, 100);
+            
+            document.getElementById('powerFill').style.height = power + '%';
+        }
+        
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Sfondo con nuvole
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(200, 100, 40, 0, Math.PI * 2);
+            ctx.arc(230, 100, 50, 0, Math.PI * 2);
+            ctx.arc(260, 100, 40, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(700, 150, 50, 0, Math.PI * 2);
+            ctx.arc(740, 150, 60, 0, Math.PI * 2);
+            ctx.arc(780, 150, 50, 0, Math.PI * 2);
+            ctx.fill();
+            
+            drawGround();
+            drawSlingshot();
+            
+            // Disegna ostacoli
+            for (let obstacle of obstacles) {
+                obstacle.draw();
+            }
+            
+            // Aggiorna e disegna bottiglie
+            for (let bottle of bottles) {
+                bottle.update();
+                bottle.draw();
+            }
+            
+            // Aggiorna e disegna palle
+            for (let i = balls.length - 1; i >= 0; i--) {
+                balls[i].update();
+                balls[i].draw();
+                
+                // Controlla collisioni
+                for (let bottle of bottles) {
+                    if (balls[i].checkCollision(bottle)) {
+                        bottle.hit();
+                    }
+                }
+                
+                if (!balls[i].active) {
+                    balls.splice(i, 1);
+                }
+            }
+            
+            updatePowerBar();
+            
+            // Controlla se tutte le bottiglie sono cadute
+            const aliveBottles = bottles.filter(b => b.alive && !b.falling).length;
+            if (aliveBottles === 0 && bottles.length > 0 && balls.length === 0) {
+                levelComplete();
+            }
+            
+            // Controlla se hai finito i colpi
+            if (shotsLeft === 0 && balls.length === 0 && aliveBottles > 0) {
+                gameOver();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function levelComplete() {
+            document.getElementById('completeTitle').textContent = '🎉 Livello Completato!';
+            document.getElementById('completeMessage').textContent = 
+                `Hai fatto ${score} punti! Colpi rimasti: ${shotsLeft}`;
+            document.getElementById('levelComplete').style.display = 'block';
+            document.querySelector('#levelComplete button:first-of-type').style.display = 'inline-block';
+        }
+        
+        function gameOver() {
+            document.getElementById('completeTitle').textContent = '❌ Livello Fallito!';
+            document.getElementById('completeMessage').textContent = 
+                `Non hai distrutto tutte le bottiglie! Riprova questo livello.`;
+            document.getElementById('levelComplete').style.display = 'block';
+            document.querySelector('#levelComplete button:first-of-type').style.display = 'none';
+        }
+        
+        function nextLevel() {
+            level++;
+            shotsLeft = 10;
+            balls = [];
+            document.getElementById('level').textContent = level;
+            document.getElementById('shots').textContent = shotsLeft;
+            document.getElementById('levelComplete').style.display = 'none';
+            createBottleTower();
+        }
+        
+        function restartGame() {
+            // Resetta il punteggio al valore iniziale del livello
+            score = levelStartScore;
+            document.getElementById('score').textContent = score;
+            shotsLeft = 10;
+            balls = [];
+            obstacles = [];
+            document.getElementById('shots').textContent = shotsLeft;
+            document.getElementById('levelComplete').style.display = 'none';
+            createBottleTower();
+        }
+        
+        // Modalità sviluppatore
+        const DEV_CODE = "fionda2024"; // Cambia questo codice con quello che preferisci
+        
+        function openDevMode() {
+            document.getElementById('devMode').style.display = 'block';
+            document.getElementById('devError').style.display = 'none';
+            document.getElementById('devCode').value = '';
+            document.getElementById('devLevel').value = '';
+        }
+        
+        function closeDevMode() {
+            document.getElementById('devMode').style.display = 'none';
+        }
+        
+        function checkDevCode() {
+            const code = document.getElementById('devCode').value;
+            const targetLevel = parseInt(document.getElementById('devLevel').value);
+            
+            if (code === DEV_CODE && targetLevel >= 1 && targetLevel <= 50) {
+                level = targetLevel;
+                score = 0;
+                shotsLeft = 10;
+                balls = [];
+                obstacles = [];
+                document.getElementById('score').textContent = score;
+                document.getElementById('level').textContent = level;
+                document.getElementById('shots').textContent = shotsLeft;
+                document.getElementById('levelComplete').style.display = 'none';
+                closeDevMode();
+                createBottleTower();
+            } else {
+                document.getElementById('devError').style.display = 'block';
+            }
+        }
+        
+        // Funzioni comuni per mouse e touch
+        function getInputPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            let clientX, clientY;
+            
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+        
+        function handleStart(e) {
+            e.preventDefault();
+            const pos = getInputPosition(e);
+            
+            const dx = pos.x - slingshot.x;
+            const dy = pos.y - slingshot.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < 80 && shotsLeft > 0) {
+                isDragging = true;
+                dragStart = pos;
+                dragCurrent = pos;
+            }
+        }
+        
+        function handleMove(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            dragCurrent = getInputPosition(e);
+            
+            // Limita il trascinamento
+            const dx = dragCurrent.x - slingshot.x;
+            const dy = dragCurrent.y - slingshot.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const maxDistance = 150;
+            
+            if (distance > maxDistance) {
+                const angle = Math.atan2(dy, dx);
+                dragCurrent.x = slingshot.x + Math.cos(angle) * maxDistance;
+                dragCurrent.y = slingshot.y + Math.sin(angle) * maxDistance;
+            }
+        }
+        
+        function handleEnd(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            const dx = slingshot.x - dragCurrent.x;
+            const dy = slingshot.y - dragCurrent.y;
+            
+            const velocityX = dx * 0.15;
+            const velocityY = dy * 0.15;
+            
+            balls.push(new Ball(dragCurrent.x, dragCurrent.y, velocityX, velocityY));
+            
+            shotsLeft--;
+            document.getElementById('shots').textContent = shotsLeft;
+            
+            isDragging = false;
+        }
+        
+        // Event listeners per mouse
+        canvas.addEventListener('mousedown', handleStart, false);
+        canvas.addEventListener('mousemove', handleMove, false);
+        canvas.addEventListener('mouseup', handleEnd, false);
+        
+        // Event listeners per touch - con passive: false per permettere preventDefault
+        canvas.addEventListener('touchstart', handleStart, { passive: false });
+        canvas.addEventListener('touchmove', handleMove, { passive: false });
+        canvas.addEventListener('touchend', handleEnd, { passive: false });
+        canvas.addEventListener('touchcancel', handleEnd, { passive: false });
+        
+        // Avvia il gioco
+        createBottleTower();
+        gameLoop();
+        
+        setTimeout(() => {
+            document.getElementById('instructions').style.display = 'none';
+        }, 5000);
+        
+        // Modalità sviluppatore nascosta: clicca 5 volte velocemente sul punteggio
+        let clickCount = 0;
+        let clickTimer = null;
+        
+        document.getElementById('scoreArea').addEventListener('click', () => {
+            clickCount++;
+            
+            if (clickCount === 5) {
+                openDevMode();
+                clickCount = 0;
+                clearTimeout(clickTimer);
+            }
+            
+            clearTimeout(clickTimer);
+            clickTimer = setTimeout(() => {
+                clickCount = 0;
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
